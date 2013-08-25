@@ -33,10 +33,10 @@ FLAVOUR=mark
 KERNELSOURCEURL="https://www.kernel.org/pub/linux/kernel/v3.0/linux-$VERSION.tar.xz"
 
 # The source directory (default: current working directory)
-SRCDIR=$PWD
+SRCDIR="$PWD"
 
 # The subdirectory that the build should output to
-OUTDIR=_build
+OUTDIR="_build"
 
 # The maximum number of concurrent jobs MAKE can run
 JOBS=16
@@ -61,8 +61,7 @@ function pause {
 		CURRENTOPERATION="$1"
 		echo -n "Press <ENTER> to $1..."
 		read line
-	else
-		start "$1"
+	else	start "$1"
 	fi
 }
 
@@ -84,11 +83,10 @@ function failed {
 # Download a kernel source if we don't have one in the current directory
 if [ ! -e "Kbuild" ]
 then	start "download kernel source"
-	wget "$KERNELSOURCEURL" || failed
-	tar xJf "linux-$VERSION.tar.xz" || failed
-	ln -s "$PWD/linux-$VERSION" /usr/src/linux-$VERSION-$FLAVOUR || failed
-	SRCDIR=/usr/src/linux-$VERSION-$FLAVOUR
-	cp "$0" $SRCDIR/
+	curl "$KERNELSOURCEURL" | tar xJ || failed
+	ln -s "$PWD/linux-$VERSION" "/usr/src/linux-$VERSION-$FLAVOUR" || failed
+	SRCDIR="/usr/src/linux-$VERSION-$FLAVOUR"
+	cp "$0" "$SRCDIR/"
 fi
 
 # Move into the source directory
@@ -98,7 +96,7 @@ trap 'popd' exit
 # Create output directory if it doesn't exist
 if [ ! -d "$OUTDIR" ]
 then	start "create output directory"
-	mkdir $OUTDIR || failed
+	mkdir "$OUTDIR" || failed
 fi
 
 # Backup config file before running clean
@@ -109,53 +107,53 @@ fi
 
 # Clean the build directory
 start "clean build directory"
-make distclean O=$OUTDIR || failed
+make distclean O="$OUTDIR" || failed
 
 # Restore config file if exists, otherwise read from kernel
 if [ -e "CONFIG" ]
 then	start "restore configuration"
-	cp CONFIG $OUTDIR/.config || failed
+	cp CONFIG "$OUTDIR/.config" || failed
 else	start "get current kernel's configuration"
-	zcat /proc/config.gz > $OUTDIR/.config || failed
+	zcat /proc/config.gz > "$OUTDIR/.config" || failed
 fi
 
 # Configuring kernel
 start "configure kernel"
-make menuconfig O=$OUTDIR || failed
+make menuconfig O="$OUTDIR" || failed
 
 # Making kernel
 start "build kernel"
-make all O=$OUTDIR --jobs=$JOBS || failed
+make all O="$OUTDIR" --jobs=$JOBS || failed
 
 # Making modules
 start "build modules"
-make modules O=$OUTDIR --jobs=$JOBS || failed
+make modules O="$OUTDIR" --jobs=$JOBS || failed
 
 # Installing modules
 start "install modules"
-make modules_install O=$OUTDIR --jobs=$JOBS || failed
+make modules_install O="$OUTDIR" --jobs=$JOBS || failed
 
 # AMD Radeon patch (required for catalyst build script, called by catalyst-hook, called by mkinitcpio)
 start "apply radeon patch"
-echo "#define COMPAT_ALLOC_USER_SPACE arch_compat_alloc_user_space" >> $SRCDIR/_build/arch/x86/include/generated/asm/compat.h
-if [ -e $SRCDIR/_build/arch/x86/include/asm ]
-then	rm $SRCDIR/_build/arch/x86/include/asm || failed
+echo "#define COMPAT_ALLOC_USER_SPACE arch_compat_alloc_user_space" >> "$SRCDIR/_build/arch/x86/include/generated/asm/compat.h"
+if [ -e "$SRCDIR/_build/arch/x86/include/asm" ]
+then	rm "$SRCDIR/_build/arch/x86/include/asm" || failed
 fi
-ln -s $SRCDIR/_build/arch/x86/include/generated/asm $SRCDIR/_build/arch/x86/include/asm || failed
+ln -s "$SRCDIR/_build/arch/x86/include/generated/asm" "$SRCDIR/_build/arch/x86/include/asm" || failed
 
 # Creating initramfs
 start "create initramfs"
-mkinitcpio -g $OUTDIR/initramfs.img -z cat -k $VERSION-$FLAVOUR || failed
+mkinitcpio -g "$OUTDIR/initramfs.img" -z cat -k $VERSION-$FLAVOUR || failed
 
 # Installing kernel
 start "install kernel"
-cp $OUTDIR/arch/x86/boot/bzImage /boot/vmlinuz-$FLAVOUR || failed
-cp $OUTDIR/arch/x86/boot/bzImage /boot2/vmlinuz-$FLAVOUR
+cp "$OUTDIR/arch/x86/boot/bzImage" /boot/vmlinuz-$FLAVOUR || failed
+cp "$OUTDIR/arch/x86/boot/bzImage" /boot2/vmlinuz-$FLAVOUR
 
 # Installing initrd
 start "install initramfs"
-cp $OUTDIR/initramfs.img /boot/initramfs-$FLAVOUR.img || failed
-cp $OUTDIR/initramfs.img /boot2/initramfs-$FLAVOUR.img
+cp "$OUTDIR/initramfs.img" /boot/initramfs-$FLAVOUR.img || failed
+cp "$OUTDIR/initramfs.img" /boot2/initramfs-$FLAVOUR.img
 
 # Updating grub
 start "generate grub.cfg"
