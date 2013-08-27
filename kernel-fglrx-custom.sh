@@ -3,7 +3,7 @@
 # The kernel version number
 VERSION=3.4.59
 # The kernel flavour (e.g. lts, arch, lowlatency, etc)
-FLAVOUR=mark
+FLAVOUR=fglrx-custom
 
 # The kernel source should be extracted to:
 #   /usr/src/linux-$VERSION-$FLAVOUR
