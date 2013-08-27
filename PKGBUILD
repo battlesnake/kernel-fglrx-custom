@@ -13,9 +13,9 @@ source=( 'battlesnake::git+https://github.com/battlesnake/kernel-fglrx-custom.gi
 md5sums=( 'SKIP' )
 
 package() {
-	cd "$srcdir"
 	OUTDIR="/usr/share/kernel-fglrx-custom"
-	msg "Copying script to $pkgdir$OUTDIR/"
+	msg "Copying script to $OUTDIR/"
 	mkdir -p "$pkgdir$OUTDIR"
-	install -Dm744 "$srcdir/kernel-fglrx-custom.sh" "$pkgdir$OUTDIR/"
+	install -Dm744 "battlesnake/kernel-fglrx-custom.sh" "$pkgdir$OUTDIR"
+	echo "View the script at $OUTDIR/ in your favourite text editor, modify as needed, then run it."
 }
