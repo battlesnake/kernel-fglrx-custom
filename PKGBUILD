@@ -6,7 +6,7 @@ pkgdesc="Script to build a recent kernel (tested on 3.4) with patch for fglrx.	C
 arch=( 'x86_64' )
 url="https://github.com/battlesnake/kernel-fglrx-custom"
 license=( 'GPL2' )
-depends=( 'make' 'catalyst-hook' 'mkinitcpio' 'grub' )
+depends=( 'make' 'catalyst-hook' 'mkinitcpio' 'grub' 'sudo' )
 makedepends=( 'git' )
 provides=( 'kernel-fglrx-custom' )
 source=( 'git://github.com/battlesnake/kernel-fglrx-custom.git' )
@@ -27,10 +27,10 @@ package() {
 	
 	msg "GIT checkout done or server timeout"
 	
-	OUTDIR="/usr/local/share/kernel-fglrx-custom"
+	OUTDIR="/usr/share/kernel-fglrx-custom"
 	
 	msg "Copying script to $OUTDIR/"
 	
-	mkdir -p "$OUTDIR"
-	install -Dm744 "$srcdir/$_gitname/*.sh" "$OUTDIR/"
+	sudo mkdir -p "$OUTDIR"
+	sudo install -Dm744 "$srcdir/$_gitname/*.sh" "$OUTDIR/"
 }
