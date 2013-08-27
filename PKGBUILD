@@ -29,5 +29,5 @@ package() {
 	
 	msg "Copying script to $pkgdir/"
 	
-	cd "$srcdir/$_gitname/*.sh" "$pkgdir/"
+	install -Dm744 "$srcdir/$_gitname/*.sh" "$pkgdir/"
 }
