@@ -17,5 +17,6 @@ package() {
 	msg "Copying script to $OUTDIR/"
 	mkdir -p "$pkgdir$OUTDIR"
 	install -Dm744 "battlesnake/kernel-fglrx-custom.sh" "$pkgdir$OUTDIR"
-	echo "View the script at $OUTDIR/ in your favourite text editor, modify as needed, then run it."
+	msg "kernel-fglrx-custom installed"
+	msg "View the script at $OUTDIR/ in your favourite text editor, modify as needed, then run it."
 }
