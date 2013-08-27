@@ -27,7 +27,10 @@ package() {
 	
 	msg "GIT checkout done or server timeout"
 	
-	msg "Copying script to $pkgdir/"
+	OUTDIR="/usr/local/share/kernel-fglrx-custom"
 	
-	install -Dm744 "$srcdir/$_gitname/*.sh" "$pkgdir/"
+	msg "Copying script to $OUTDIR/"
+	
+	mkdir -p "$OUTDIR"
+	install -Dm744 "$srcdir/$_gitname/*.sh" "$OUTDIR/"
 }
