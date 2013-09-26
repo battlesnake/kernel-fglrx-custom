@@ -1,0 +1,5 @@
+#!/bin/bash
+export VERSION="3.11.1"
+export FLAVOUR="fglrx"
+export PATCH="bfs-3.11.patch"
+./kernel-fglrx-custom.sh

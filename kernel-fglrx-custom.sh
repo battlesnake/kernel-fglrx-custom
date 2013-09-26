@@ -10,9 +10,15 @@
 # https://github.com/battlesnake/kernel-fglrx-custom
 
 # The kernel version number
-VERSION=3.11.1
+if [ -z "$VERSION" ]
+then
+	VERSION=3.11.1
+fi
 # The kernel flavour (e.g. lts, arch, lowlatency, etc)
-FLAVOUR=fglrx
+if [ -z "$FLAVOUR" ]
+then
+	FLAVOUR=fglrx
+fi
 
 # For now, run as root.  I trust the kernel developers to produce safe,
 # virus-free, bug-free makefiles.  They are a clever bunch of people
@@ -21,10 +27,7 @@ FLAVOUR=fglrx
 # if they so desire.
 #
 # Untested features:
-#  + Kernel version != 3.4.59
 #  + Filenames/paths containing spaces
-#  + Auto-downloading kernel
-#  + Auto-moving script to download folder
 #
 # The kernel source should be extracted to:
 #   /usr/src/linux-$VERSION-$FLAVOUR
@@ -62,7 +65,7 @@ FLAVOUR=fglrx
 # has NOT been tested at all.
 
 # URL of kernel source - not used if a source is found in $PWD/
-KERNELSOURCEURL="https://www.kernel.org/pub/linux/kernel/v3.0/linux-$VERSION.tar.xz"
+KERNELSOURCEURL="https://www.kernel.org/pub/linux/kernel/v3.x/linux-$VERSION.tar.xz"
 
 # The source directory (default: current working directory)
 SRCDIR="$PWD"
@@ -73,6 +76,8 @@ OUTDIR="build"
 # The maximum number of concurrent jobs MAKE can run
 # Set to 16, the kernel builds in <2minutes on my 5.1GHz i7-2700k
 JOBS=16
+
+CONFIG=".config"
 
 # Force (-f / --force) option skips all prompts
 if [ "$1" == "-f" ] || [ "$1" == "--force" ]
@@ -119,9 +124,16 @@ function failed {
 }
 
 function makelink {
-	if [ -s "$2" ]
+	if [ -L "$2" ]
 	then
+		start "unlink [$2]"
 		rm "$2"
+	fi
+	start "link to [$1] at [$2]"
+	if [ -e "$2" ]
+	then
+		echo -n " !! target exists and is not a symbolic link !! "
+		failed
 	fi
 	ln -s "$1" "$2" || failed
 }
@@ -131,21 +143,37 @@ function makelink {
 # Copy this script to that directory
 if [ ! -e "Kbuild" ]
 then
-	start "download kernel source"
 	KERNELARCHIVE="linux-$VERSION.tar.${KERNELSOURCEURL##*.}"
 	if [ ! -e "$KERNELARCHIVE" ]
 	then
+		start "download kernel source [$VERSION]"
 		curl "$KERNELSOURCEURL" > "$KERNELARCHIVE" || failed
 	fi
-	tar xa "$KERNELARCHIVE" || failed
+	if [ ! -d "linux-$VERSION" ]
+	then
+		start "extract kernel source"
+		tar xaf "$KERNELARCHIVE" || failed
+	fi
 	SRCDIR="/usr/src/linux-$VERSION-$FLAVOUR"
-	start "link local source folder [$PWD/linux-$VERSION] to [$SRCDIR]"
 	makelink "$PWD/linux-$VERSION" "$SRCDIR"
 	MODDIR="/lib/modules/$VERSION-$FLAVOUR"
 	mkdir "$MODDIR"
 	makelink "$SRCDIR" "$MODDIR/source"
 	makelink "$SRCDIR/$OUTDIR" "$MODDIR/build"
 	cp "$0" "$SRCDIR/"
+	if [ -e "$CONFIG" ]
+	then
+		start "copy .config from script folder to source folder"
+		cp "$CONFIG" "$SRCDIR/$OUTDIR/"
+	fi
+	if [ "$PATCH" ]
+	then
+		start "apply patch '$PATCH'"
+		PATCH="`realpath "$PATCH"`"
+		pushd "$SRCDIR"
+		patch -p1 < "$PATCH" || failed
+		popd
+	fi
 fi
 
 # Move into the source directory
@@ -160,10 +188,10 @@ then
 fi
 
 # Backup config file before running clean
-if [ -e "$OUTDIR/.config" ]
+if [ -e "$OUTDIR/$CONFIG" ]
 then
 	start "make backup of last configuration"
-	cp "$OUTDIR/.config" "./CONFIG" || failed
+	cp "$OUTDIR/$CONFIG" "$CONFIG.old" || failed
 fi
 
 # Clean the build directory
@@ -171,30 +199,35 @@ start "clean build directory"
 make distclean O="$OUTDIR" || failed
 
 # Restore config file if exists, otherwise read from kernel
-if [ -e "CONFIG" ]
+if [ -e "$CONFIG.old" ]
 then
 	start "restore configuration"
-	cp CONFIG "$OUTDIR/.config" || failed
+	cp "$CONFIG.old" "$OUTDIR/$CONFIG" || failed
 else
 	start "get current kernel's configuration"
-	zcat /proc/config.gz > "$OUTDIR/.config" || failed
+	zcat /proc/config.gz > "$OUTDIR/$CONFIG" || failed
+	sed -i "s/\(CONFIG_LOCALVERSION=\).*/\1\"-$FLAVOUR\"/" "$OUTDIR/$CONFIG"
 fi
 
 # Configuring kernel
 start "configure kernel"
 make menuconfig O="$OUTDIR" || failed
 
+export CFLAGS="-O2 -march=native -pipe"
+export CPPFLAGS="$CFLAGS"
+export MAKEOPTS="--jobs=$JOBS $MAKEOPTS"
+
 # Making kernel
 start "build kernel"
-KCFLAGS="-O3 -mtune=native -march=native -pipe" KPPCFLAGS="$KCFLAGS" make all O="$OUTDIR" --jobs=$JOBS || failed
+make all O="$OUTDIR" || failed
 
 # Making modules
 start "build modules"
-make modules O="$OUTDIR" --jobs=$JOBS || failed
+make modules O="$OUTDIR" || failed
 
 # Installing modules
 start "install modules"
-make modules_install O="$OUTDIR" --jobs=$JOBS || failed
+make modules_install O="$OUTDIR" || failed
 
 # AMD Radeon patch (required for catalyst build script, called by catalyst-hook, called by mkinitcpio)
 start "apply radeon patch"
@@ -212,17 +245,17 @@ mkinitcpio -g "$OUTDIR/initramfs.img" -z cat -k $VERSION-$FLAVOUR || failed
 # Installing kernel
 start "install kernel"
 cp "$OUTDIR/arch/x86/boot/bzImage" /boot/vmlinuz-$FLAVOUR || failed
-#cp "$OUTDIR/arch/x86/boot/bzImage" /boot2/vmlinuz-$FLAVOUR
+cp "$OUTDIR/arch/x86/boot/bzImage" /boot2/vmlinuz-$FLAVOUR
 
 # Installing initrd
 start "install initramfs"
 cp "$OUTDIR/initramfs.img" /boot/initramfs-$FLAVOUR.img || failed
-#cp "$OUTDIR/initramfs.img" /boot2/initramfs-$FLAVOUR.img
+cp "$OUTDIR/initramfs.img" /boot2/initramfs-$FLAVOUR.img
 
 # Updating grub
 start "generate grub.cfg"
 grub-mkconfig -o /boot/grub/grub.cfg || failed
-#grub-mkconfig -o /boot2/grub/grub.cfg
+grub-mkconfig -o /boot2/grub/grub.cfg
 
 # Reboot and we have working AMD drivers on an old Radon with a new kernel!
 echo "If all went well, then please reboot and choose the custom kernel in GRUB for"
