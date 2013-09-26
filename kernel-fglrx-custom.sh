@@ -215,7 +215,7 @@ make menuconfig O="$OUTDIR" || failed
 
 export CFLAGS="-O2 -march=native -pipe"
 export CPPFLAGS="$CFLAGS"
-export MAKEOPTS="--jobs=$JOBS $MAKEOPTS"
+export MAKEFLAGS="--jobs=$JOBS"
 
 # Making kernel
 start "build kernel"
