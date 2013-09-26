@@ -138,18 +138,26 @@ function makelink {
 	ln -s "$1" "$2" || failed
 }
 
+function makedir {
+	if [ ! -d "$1" ]
+	then
+		start "create folder '$1'"
+		mkdir "$1" || failed
+	fi
+}
+
 # Download a kernel source if we don't have one in the current directory
 # Symlink it to the recommended target directory
 # Copy this script to that directory
-if [ ! -e "Kbuild" ]
+if [ ! -e "Kbuild" ] || [ "$DOWNLOAD" ]
 then
 	KERNELARCHIVE="linux-$VERSION.tar.${KERNELSOURCEURL##*.}"
-	if [ ! -e "$KERNELARCHIVE" ]
+	if [ ! -e "$KERNELARCHIVE" ] && [ ! -d "linux-$VERSION" ] || [ "$DOWNLOAD" ]
 	then
 		start "download kernel source [$VERSION]"
 		curl "$KERNELSOURCEURL" > "$KERNELARCHIVE" || failed
 	fi
-	if [ ! -d "linux-$VERSION" ]
+	if [ ! -d "linux-$VERSION" ] || [ "$DOWNLOAD" ]
 	then
 		start "extract kernel source"
 		tar xaf "$KERNELARCHIVE" || failed
@@ -168,11 +176,14 @@ then
 	fi
 	if [ "$PATCH" ]
 	then
-		start "apply patch '$PATCH'"
-		PATCH="`realpath "$PATCH"`"
-		pushd "$SRCDIR"
-		patch -Np1 < "$PATCH" || failed
-		popd
+		for PAT in $PATCH
+		do
+			start "apply patch '$PAT'"
+			PATF="`realpath "$PAT"`"
+			pushd "$SRCDIR"
+			patch -Np1 < "$PATF"
+			popd
+		done
 	fi
 fi
 
@@ -194,36 +205,47 @@ then
 	cp "$OUTDIR/$CONFIG" "$CONFIG.old" || failed
 fi
 
-# Clean the build directory
-start "clean build directory"
-make distclean O="$OUTDIR" || failed
-
-# Restore config file if exists, otherwise read from kernel
-if [ -e "$CONFIG.old" ]
+if [ -z "$NOBUILD" ]
 then
-	start "restore configuration"
-	cp "$CONFIG.old" "$OUTDIR/$CONFIG" || failed
-else
-	start "get current kernel's configuration"
-	zcat /proc/config.gz > "$OUTDIR/$CONFIG" || failed
-	sed -i "s/\(CONFIG_LOCALVERSION=\).*/\1\"-$FLAVOUR\"/" "$OUTDIR/$CONFIG"
+	# Clean the build directory
+	start "clean build directory"
+	make distclean O="$OUTDIR" || failed
+
+	# Restore config file if exists, otherwise read from kernel
+	if [ -e "$CONFIG.old" ]
+	then
+		start "restore configuration"
+		cp "$CONFIG.old" "$OUTDIR/$CONFIG" || failed
+	else
+		start "get current kernel's configuration"
+		zcat /proc/config.gz > "$OUTDIR/$CONFIG" || failed
+		sed -i "s/\(CONFIG_LOCALVERSION=\).*/\1\"-$FLAVOUR\"/" "$OUTDIR/$CONFIG"
+	fi
+
+	# Configuring kernel
+	start "configure kernel"
+	make menuconfig O="$OUTDIR" || failed
+
+	export CFLAGS="-O2 -march=native -pipe"
+	export CPPFLAGS="$CFLAGS"
+	export MAKEFLAGS="--jobs=$JOBS"
+
+	# Making kernel
+	start "build kernel"
+	make all O="$OUTDIR" || failed
+
+	# Making modules
+	start "build modules"
+	make modules O="$OUTDIR" || failed
 fi
 
-# Configuring kernel
-start "configure kernel"
-make menuconfig O="$OUTDIR" || failed
-
-export CFLAGS="-O2 -march=native -pipe"
-export CPPFLAGS="$CFLAGS"
-export MAKEFLAGS="--jobs=$JOBS"
-
-# Making kernel
-start "build kernel"
-make all O="$OUTDIR" || failed
-
-# Making modules
-start "build modules"
-make modules O="$OUTDIR" || failed
+EXTRAMODULES="extramodules-${VERSION%.[0-9]*}-$FLAVOUR"
+makedir "/usr/lib/modules/$VERSION-$FLAVOUR"
+makedir "/usr/lib/modules/$EXTRAMODULES"
+if [ ! -f "/usr/lib/modules/$EXTRAMODULES/version" ]
+then
+	echo "$VERSION-$FLAVOUR" > "/usr/lib/modules/$EXTRAMODULES/version"
+fi
 
 # Installing modules
 start "install modules"

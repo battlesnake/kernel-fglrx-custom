@@ -14,9 +14,13 @@ This script's actions:
 	Build initrd image via mkinitcpio
 	Install initrd/vmlinuz
 	Update grub via grub-mkconfig
+
+The included BFS [by Con Kolivas] patches are taken from http://ck.kolivas.org/patches/bfs/
 	
-Available from the Arch User Repository (AUR) as "kernel-fglrx-custom-git".
+This package is available from the Arch User Repository (AUR) as "kernel-fglrx-custom-git".
 
 `kernel-fglrx-custom.sh` is installed to `/usr/share/kernel-fglrx-custom` if installed via Arch Linux PKGBUILD.
 
 Since this script tinkers with GRUB, display drivers and kernels, look at the code and comments in the script to understand how to use it.  Don't rely on some summary from a forum or you'll probably brick your operating system.
+
+Running the "./makeit" script may suffice for the lazy among you who just want to get your amazing legacy GPUs working again.

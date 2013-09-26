@@ -1,5 +1,6 @@
 #!/bin/bash
-export VERSION="3.11.1"
-export FLAVOUR="fglrx"
-export PATCH="bfs-3.11.patch"
+[ "$VERSION" ] || export VERSION="3.11.1"
+[ "$FLAVOUR" ] || export FLAVOUR="fglrx"
+SHORTVER="${VERSION%.[0-9]*}"
+[ -f "bfs-$SHORTVER.patch" ] && export PATCH="bfs-$SHORTVER.patch $PATCH"
 ./kernel-fglrx-custom.sh
