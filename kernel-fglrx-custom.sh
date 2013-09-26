@@ -10,9 +10,9 @@
 # https://github.com/battlesnake/kernel-fglrx-custom
 
 # The kernel version number
-VERSION=3.4.59
+VERSION=3.11.1
 # The kernel flavour (e.g. lts, arch, lowlatency, etc)
-FLAVOUR=fglrx-custom
+FLAVOUR=fglrx
 
 # For now, run as root.  I trust the kernel developers to produce safe,
 # virus-free, bug-free makefiles.  They are a clever bunch of people
@@ -76,7 +76,8 @@ JOBS=16
 
 # Force (-f / --force) option skips all prompts
 if [ "$1" == "-f" ] || [ "$1" == "--force" ]
-then	FORCE=1
+then
+	FORCE=1
 fi
 
 CURRENTOPERATION=
@@ -90,11 +91,13 @@ function start {
 # Pauses for user confirmation unless force option is specified
 function pause {
 	if [ -z "$FORCE" ]
-	then	local line
+	then
+		local line
 		CURRENTOPERATION="$1"
 		echo -n "Press <ENTER> to $1..."
 		read line
-	else	start "$1"
+	else
+		start "$1"
 	fi
 }
 
@@ -102,8 +105,10 @@ function pause {
 function failed {
 	echo 'Operation "'"$CURRENTOPERATION"'" failed with code '"$?"
 	if [ -z "$FORCE" ]
-	then	while true
-		do	echo -n "Continue or open subshell (y/n/s)? "
+	then
+		while true
+		do
+			echo -n "Continue or open subshell (y/n/s)? "
 			local line
 			read line
 			[ "$line" == "y" ] || [ "$line" == "Y" ] && return 0
@@ -113,14 +118,33 @@ function failed {
 	fi
 }
 
+function makelink {
+	if [ -s "$2" ]
+	then
+		rm "$2"
+	fi
+	ln -s "$1" "$2" || failed
+}
+
 # Download a kernel source if we don't have one in the current directory
 # Symlink it to the recommended target directory
 # Copy this script to that directory
 if [ ! -e "Kbuild" ]
-then	start "download kernel source"
-	curl "$KERNELSOURCEURL" | tar xJ || failed
+then
+	start "download kernel source"
+	KERNELARCHIVE="linux-$VERSION.tar.${KERNELSOURCEURL##*.}"
+	if [ ! -e "$KERNELARCHIVE" ]
+	then
+		curl "$KERNELSOURCEURL" > "$KERNELARCHIVE" || failed
+	fi
+	tar xa "$KERNELARCHIVE" || failed
 	SRCDIR="/usr/src/linux-$VERSION-$FLAVOUR"
-	ln -s "$PWD/linux-$VERSION" "$SRCDIR" || failed
+	start "link local source folder [$PWD/linux-$VERSION] to [$SRCDIR]"
+	makelink "$PWD/linux-$VERSION" "$SRCDIR"
+	MODDIR="/lib/modules/$VERSION-$FLAVOUR"
+	mkdir "$MODDIR"
+	makelink "$SRCDIR" "$MODDIR/source"
+	makelink "$SRCDIR/$OUTDIR" "$MODDIR/build"
 	cp "$0" "$SRCDIR/"
 fi
 
@@ -130,13 +154,15 @@ trap 'popd' exit
 
 # Create output directory if it doesn't exist
 if [ ! -d "$OUTDIR" ]
-then	start "create output directory"
+then
+	start "create output directory"
 	mkdir "$OUTDIR" || failed
 fi
 
 # Backup config file before running clean
 if [ -e "$OUTDIR/.config" ]
-then	start "make backup of last configuration"
+then
+	start "make backup of last configuration"
 	cp "$OUTDIR/.config" "./CONFIG" || failed
 fi
 
@@ -146,9 +172,11 @@ make distclean O="$OUTDIR" || failed
 
 # Restore config file if exists, otherwise read from kernel
 if [ -e "CONFIG" ]
-then	start "restore configuration"
+then
+	start "restore configuration"
 	cp CONFIG "$OUTDIR/.config" || failed
-else	start "get current kernel's configuration"
+else
+	start "get current kernel's configuration"
 	zcat /proc/config.gz > "$OUTDIR/.config" || failed
 fi
 
@@ -158,7 +186,7 @@ make menuconfig O="$OUTDIR" || failed
 
 # Making kernel
 start "build kernel"
-make all O="$OUTDIR" --jobs=$JOBS || failed
+KCFLAGS="-O3 -mtune=native -march=native -pipe" KPPCFLAGS="$KCFLAGS" make all O="$OUTDIR" --jobs=$JOBS || failed
 
 # Making modules
 start "build modules"
@@ -172,7 +200,8 @@ make modules_install O="$OUTDIR" --jobs=$JOBS || failed
 start "apply radeon patch"
 echo "#define COMPAT_ALLOC_USER_SPACE arch_compat_alloc_user_space" >> "$SRCDIR/$OUTDIR/arch/x86/include/generated/asm/compat.h"
 if [ -e "$SRCDIR/$OUTDIR/arch/x86/include/asm" ]
-then	rm "$SRCDIR/$OUTDIR/arch/x86/include/asm" || failed
+then
+	rm "$SRCDIR/$OUTDIR/arch/x86/include/asm" || failed
 fi
 ln -s "$SRCDIR/$OUTDIR/arch/x86/include/generated/asm" "$SRCDIR/$OUTDIR/arch/x86/include/asm" || failed
 
