@@ -29,6 +29,11 @@ fi
 # Untested features:
 #  + Filenames/paths containing spaces
 #
+# Known issues:
+#  + Attempting to build several different kernel versions
+#    To do this, delete .config file from script directory before
+#    attempting to build another version.
+#
 # The kernel source should be extracted to:
 #   /usr/src/linux-$VERSION-$FLAVOUR
 # Alternatively, be a nice guinea pig and test the automatic download by
@@ -205,6 +210,10 @@ then
 	cp "$OUTDIR/$CONFIG" "$CONFIG.old" || failed
 fi
 
+export CFLAGS="-O2 -march=native -pipe"
+export CPPFLAGS="$CFLAGS"
+export MAKEFLAGS="--jobs=$JOBS"
+
 if [ -z "$NOBUILD" ]
 then
 	# Clean the build directory
@@ -225,10 +234,6 @@ then
 	# Configuring kernel
 	start "configure kernel"
 	make menuconfig O="$OUTDIR" || failed
-
-	export CFLAGS="-O2 -march=native -pipe"
-	export CPPFLAGS="$CFLAGS"
-	export MAKEFLAGS="--jobs=$JOBS"
 
 	# Making kernel
 	start "build kernel"
