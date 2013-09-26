@@ -171,7 +171,7 @@ then
 		start "apply patch '$PATCH'"
 		PATCH="`realpath "$PATCH"`"
 		pushd "$SRCDIR"
-		patch -p1 < "$PATCH" || failed
+		patch -Np1 < "$PATCH" || failed
 		popd
 	fi
 fi
